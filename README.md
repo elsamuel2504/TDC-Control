@@ -40,7 +40,7 @@
             background-color: var(--secondary-color);
             padding: 20px;
             border-radius: 15px;
-            margin-bottom: 40px;
+            margin-bottom: 15px;
         }
         .main-summary-section h2 {
             margin-top: 0;
@@ -54,6 +54,31 @@
             color: var(--accent-color);
             margin: 0;
         }
+        
+        .projection-section {
+            text-align: center;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+        }
+        .projection-section label {
+            margin-right: 10px;
+        }
+        .projection-section select {
+            padding: 8px;
+            border-radius: 5px;
+            background: #333;
+            color: var(--font-color);
+            border: 1px solid #444;
+        }
+        .projection-section #projection-result {
+            margin-top: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--secondary-accent-color);
+        }
+
 
         .cards-header {
             display: flex;
@@ -348,6 +373,13 @@
             <h2>Total a Pagar este Mes</h2>
             <p id="total-monthly-payment">$0.00</p>
         </div>
+
+        <div class="projection-section">
+            <h2>Proyección Futura</h2>
+            <label for="future-month-select">Ver pago proyectado para:</label>
+            <select id="future-month-select" onchange="showProjection()"></select>
+            <p id="projection-result"></p>
+        </div>
         
         <div class="cards-header">
             <h2>Tus Tarjetas</h2>
@@ -424,11 +456,7 @@
     
     <script>
         // --- DATA MODEL & PERSISTENCE ---
-        let cards = JSON.parse(localStorage.getItem('cards')) || [
-            { id: 1, name: 'Mi Tarjeta Azul', limit: 10000, cutDay: 15, payDay: 5, color: '#007bff' },
-            { id: 2, name: 'Tarjeta Verde', limit: 15000, cutDay: 20, payDay: 10, color: '#28a745' },
-            { id: 3, name: 'La Dorada', limit: 20000, cutDay: 1, payDay: 21, color: '#ffc107' }
-        ];
+        let cards = JSON.parse(localStorage.getItem('cards')) || [];
         let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
         let people = JSON.parse(localStorage.getItem('people')) || ['Samuel'];
 
@@ -522,7 +550,7 @@
                 expensesByMonth[month].forEach(exp => {
                     const card = cards.find(c => c.id === exp.cardId);
                     let paymentInfo = exp.type === 'single' ? 'Único' : `Diferido (${exp.currentInstallment}/${exp.totalInstallments})`;
-                    let amountDisplay = exp.type === 'single' ? exp.amount : exp.amount; // Amount is monthly for deferred
+                    let amountDisplay = exp.amount;
                     tableHTML += `<tr>
                         <td>${exp.description}</td>
                         <td>$${amountDisplay.toFixed(2)}</td>
@@ -677,8 +705,8 @@
             if (newExpense.type === 'deferred') {
                 newExpense.totalInstallments = parseInt(document.getElementById('total-installments').value);
                 newExpense.currentInstallment = parseInt(document.getElementById('current-installment').value);
-                if (newExpense.currentInstallment > newExpense.totalInstallments) {
-                    alert("El mes actual no puede ser mayor al total de meses.");
+                if (newExpense.currentInstallment >= newExpense.totalInstallments) {
+                    alert("El mes actual debe ser menor al total de meses.");
                     return;
                 }
             }
@@ -687,7 +715,6 @@
             saveData();
             renderAll();
             closeExpenseForm();
-            // Reset form fields
             document.getElementById('expense-description').value = '';
             document.getElementById('expense-amount').value = '';
             document.getElementById('payment-type').value = 'single';
@@ -717,7 +744,7 @@
 
             const today = new Date();
             const currentYear = today.getFullYear();
-            const currentMonth = today.getMonth(); // 0-11
+            const currentMonth = today.getMonth();
 
             let cutOffDate;
             if (today.getDate() > card.cutDay) {
@@ -740,19 +767,72 @@
                         totalDue += expense.amount;
                     }
                 } else if (expense.type === 'deferred') {
-                    // Check if any installment of this deferred payment falls into the current billing cycle
-                    for (let i = 0; i < expense.totalInstallments; i++) {
-                        const installmentDate = new Date(expense.date);
-                        installmentDate.setMonth(installmentDate.getMonth() + i - (expense.currentInstallment - 1));
-                        
-                        if (installmentDate > lastCutOffDate && installmentDate <= cutOffDate) {
-                            totalDue += expense.amount; // Add the fixed monthly amount
-                            break; // Count only one installment per cycle
-                        }
-                    }
+                     const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
+                     if (remainingInstallments > 0) {
+                        totalDue += expense.amount;
+                     }
                 }
             });
             return totalDue;
+        }
+        
+        // --- PROJECTION FUNCTIONS (IMPROVED LOGIC) ---
+        function populateFutureMonths() {
+            const select = document.getElementById('future-month-select');
+            select.innerHTML = '<option value="">Selecciona un mes...</option>';
+            const now = new Date();
+            for (let i = 0; i < 24; i++) {
+                const futureDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                const month = futureDate.getMonth();
+                const year = futureDate.getFullYear();
+                const option = document.createElement('option');
+                option.value = `${month}-${year}`;
+                option.innerText = futureDate.toLocaleString('es-MX', { month: 'long', year: 'numeric' });
+                select.appendChild(option);
+            }
+        }
+
+        function showProjection() {
+            const select = document.getElementById('future-month-select');
+            const resultEl = document.getElementById('projection-result');
+            if (!select.value) {
+                resultEl.innerText = '';
+                return;
+            }
+            
+            const [month, year] = select.value.split('-').map(Number);
+            const projectedTotal = calculateFutureProjection(month, year);
+            resultEl.innerText = `Pago Proyectado: $${projectedTotal.toFixed(2)}`;
+        }
+
+        function calculateFutureProjection(targetMonth, targetYear) {
+            let projectedTotal = 0;
+            const targetDate = new Date(targetYear, targetMonth, 1);
+
+            expenses.forEach(exp => {
+                if (exp.type !== 'deferred') return;
+
+                // 1. Calculate the "real" start date of the payment plan.
+                const registrationDate = new Date(exp.date);
+                const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (exp.currentInstallment - 1), 1);
+
+                // 2. Check if the target date is even within the payment window.
+                if (targetDate < firstInstallmentDate) {
+                    return; // The projection is for a month before this payment even started.
+                }
+
+                // 3. Calculate how many months have passed between the first installment and the target date.
+                const monthsPassed = (targetDate.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (targetDate.getMonth() - firstInstallmentDate.getMonth());
+
+                // 4. The installment number for that future month is monthsPassed + 1.
+                const installmentNumberInFuture = monthsPassed + 1;
+
+                // 5. Check if this projected installment is valid (i.e., within the total number of installments).
+                if (installmentNumberInFuture > 0 && installmentNumberInFuture <= exp.totalInstallments) {
+                    projectedTotal += exp.amount;
+                }
+            });
+            return projectedTotal;
         }
 
         // --- EXPORT FUNCTIONS ---
@@ -765,7 +845,7 @@
                 const row = [
                     `"${monthYear}"`,
                     `"${exp.description.replace(/"/g, '""')}"`,
-                    exp.amount, // This is the monthly amount for deferred
+                    exp.amount,
                     exp.person,
                     card ? `"${card.name}"` : "N/A",
                     exp.type,
@@ -817,7 +897,13 @@
         }
 
         // --- INITIAL LOAD ---
-        document.addEventListener('DOMContentLoaded', renderAll);
+        document.addEventListener('DOMContentLoaded', () => {
+            if (cards.length === 0) {
+                 cards.push({ id: 1, name: 'Mi Tarjeta Azul', limit: 10000, cutDay: 15, payDay: 5, color: '#007bff' });
+            }
+            renderAll();
+            populateFutureMonths();
+        });
     </script>
 </body>
 </html>
