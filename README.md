@@ -31,8 +31,16 @@
         .welcome-header {
             text-align: center;
             margin-bottom: 20px;
+        }
+        .welcome-header h1 {
             font-size: 1.8em;
             font-weight: 300;
+            margin-bottom: 5px;
+        }
+        .welcome-header #current-date {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #b0b0b0;
         }
 
         .main-summary-section {
@@ -48,12 +56,6 @@
             font-weight: 300;
             color: #b0b0b0;
         }
-        .main-summary-section p {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: var(--accent-color);
-            margin: 0;
-        }
         
         .projection-section {
             text-align: center;
@@ -62,21 +64,43 @@
             border-radius: 15px;
             margin-bottom: 40px;
         }
-        .projection-section label {
-            margin-right: 10px;
+        .projection-section h2 {
+             margin-top: 0;
+            font-size: 1.2em;
+            font-weight: 300;
+            color: #b0b0b0;
         }
-        .projection-section select {
-            padding: 8px;
-            border-radius: 5px;
-            background: #333;
-            color: var(--font-color);
-            border: 1px solid #444;
-        }
-        .projection-section #projection-result {
-            margin-top: 15px;
-            font-size: 1.5em;
+
+        .payment-breakdown-total {
+            font-size: 2.5em;
             font-weight: bold;
-            color: var(--secondary-accent-color);
+            color: var(--accent-color);
+            margin: 0 0 15px 0;
+        }
+        .payment-breakdown-samuel {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: var(--font-color);
+            margin: 0 0 15px 0;
+        }
+        .projection-section .payment-breakdown-total {
+            font-size: 1.8em;
+        }
+        .projection-section .payment-breakdown-samuel {
+            font-size: 1.5em;
+        }
+        .other-payments-title {
+            font-size: 1em;
+            color: #b0b0b0;
+            margin-top: 15px;
+            border-top: 1px solid #444;
+            padding-top: 15px;
+            font-weight: 500;
+        }
+        .other-payments p {
+            font-size: 1.1em;
+            margin: 5px 0;
+            color: var(--font-color);
         }
 
 
@@ -255,30 +279,18 @@
             margin-bottom: 20px;
         }
         
-        .tabs {
+        .month-navigation {
             display: flex;
-            border-bottom: 1px solid #444;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
         }
-
-        .tab-button {
-            padding: 10px 20px;
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: #b0b0b0;
-            border-bottom: 3px solid transparent;
-            transition: color 0.2s, border-color 0.2s;
-        }
-
-        .tab-button.active {
-            color: var(--accent-color);
-            border-bottom-color: var(--accent-color);
+        .month-navigation h3 {
+            margin: 0;
+            font-size: 1.5em;
+            color: var(--secondary-accent-color);
         }
         
-        .month-content { display: none; }
-        .month-content.active { display: block; }
-
         table {
             width: 100%;
             border-collapse: collapse;
@@ -347,6 +359,17 @@
             background-color: #555;
         }
 
+        .btn-action {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-right: 5px;
+        }
+
         .btn-delete-expense {
             background: var(--danger-color);
             color: white;
@@ -367,18 +390,16 @@
     <div class="container">
         <div class="welcome-header">
             <h1>Bienvenido, Samuel</h1>
+            <p id="current-date"></p>
         </div>
 
         <div class="main-summary-section">
             <h2>Total a Pagar este Mes</h2>
-            <p id="total-monthly-payment">$0.00</p>
+            <div id="total-monthly-payment"></div>
         </div>
 
         <div class="projection-section">
-            <h2>Proyección Futura</h2>
-            <label for="future-month-select">Ver pago proyectado para:</label>
-            <select id="future-month-select" onchange="showProjection()"></select>
-            <p id="projection-result"></p>
+            <div id="projection-result"></div>
         </div>
         
         <div class="cards-header">
@@ -398,11 +419,12 @@
         </div>
 
         <div class="main-content-section">
-            <h2>Historial de Gastos</h2>
-            <div class="tabs" id="month-tabs">
-                <!-- Las pestañas de los meses se generarán aquí -->
+            <div class="month-navigation">
+                <button class="btn btn-secondary" onclick="showPreviousMonth()">&lt; Mes Anterior</button>
+                <h3 id="history-month-year"></h3>
+                <button class="btn btn-secondary" onclick="showNextMonth()">Mes Siguiente &gt;</button>
             </div>
-            <div id="expenses-by-month">
+            <div id="expenses-table-container">
                 <!-- El contenido de los gastos por mes se generará aquí -->
             </div>
             <div style="margin-top: 20px;">
@@ -416,7 +438,8 @@
 
     <div class="modal-overlay" id="expense-form-overlay">
         <div class="modal-content" id="expense-form-content">
-            <h2 style="margin-top:0;">Nuevo Gasto</h2>
+            <h2 id="modal-title" style="margin-top:0;">Nuevo Gasto</h2>
+            <input type="hidden" id="editing-expense-id">
             <div class="form-group">
                 <label for="expense-description">Descripción</label>
                 <input type="text" id="expense-description" required>
@@ -450,7 +473,7 @@
                     <input type="number" id="current-installment" value="1" min="1">
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="addExpense()">Registrar Gasto</button>
+            <button id="modal-submit-button" class="btn btn-primary" onclick="processExpense()">Registrar Gasto</button>
         </div>
     </div>
     
@@ -459,6 +482,7 @@
         let cards = JSON.parse(localStorage.getItem('cards')) || [];
         let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
         let people = JSON.parse(localStorage.getItem('people')) || ['Samuel'];
+        let displayedDate = new Date();
 
         function saveData() {
             localStorage.setItem('cards', JSON.stringify(cards));
@@ -470,8 +494,17 @@
         function renderAll() {
             renderCards();
             renderPeople();
-            renderExpensesByMonth();
+            renderExpensesForDisplayedMonth();
             renderTotalMonthlyPayment();
+            renderNextMonthProjection();
+            updateMonthDisplay();
+        }
+
+        function displayCurrentDate() {
+            const dateEl = document.getElementById('current-date');
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateEl.innerText = now.toLocaleDateString('es-MX', options);
         }
 
         function renderCards() {
@@ -480,7 +513,7 @@
             cards.forEach(card => {
                 const totalDebt = calculateTotalDebt(card.id);
                 const remainingBalance = card.limit - totalDebt;
-                const paymentDue = calculateTotalDueForCard(card.id);
+                const paymentDue = calculateTotalDueForCard(card.id, displayedDate);
                 const cardEl = document.createElement('div');
                 cardEl.className = 'card';
                 cardEl.style.borderTop = `5px solid ${card.color}`;
@@ -514,40 +547,20 @@
             select.innerHTML = people.map(p => `<option value="${p}">${p}</option>`).join('');
         }
 
-        function renderExpensesByMonth() {
-            const tabsContainer = document.getElementById('month-tabs');
-            const contentContainer = document.getElementById('expenses-by-month');
-            tabsContainer.innerHTML = '';
-            contentContainer.innerHTML = '';
+        function renderExpensesForDisplayedMonth() {
+            const contentContainer = document.getElementById('expenses-table-container');
+            
+            const monthStart = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
+            const monthEnd = new Date(displayedDate.getFullYear(), displayedDate.getMonth() + 1, 0);
 
-            const expensesByMonth = {};
-            expenses.forEach(exp => {
-                const monthYear = new Date(exp.date).toLocaleString('es-MX', { month: 'long', year: 'numeric' });
-                if (!expensesByMonth[monthYear]) {
-                    expensesByMonth[monthYear] = [];
-                }
-                expensesByMonth[monthYear].push(exp);
+            const filteredExpenses = expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate >= monthStart && expDate <= monthEnd;
             });
 
-            const sortedMonths = Object.keys(expensesByMonth).sort((a, b) => {
-                const dateA = new Date(`1 ${a.replace(' de ', ' ')}`);
-                const dateB = new Date(`1 ${b.replace(' de ', ' ')}`);
-                return dateB - dateA;
-            });
-
-            sortedMonths.forEach((month, index) => {
-                const tabId = month.replace(/[^a-zA-Z0-9]/g, '');
-                const tab = document.createElement('button');
-                tab.className = 'tab-button';
-                tab.innerText = month.charAt(0).toUpperCase() + month.slice(1);
-                tab.onclick = () => switchTab(tabId);
-                
-                const content = document.createElement('div');
-                content.id = tabId;
-                content.className = 'month-content';
-                
-                let tableHTML = '<table><thead><tr><th>Descripción</th><th>Monto</th><th>Persona</th><th>Tarjeta</th><th>Tipo</th><th>Acciones</th></tr></thead><tbody>';
-                expensesByMonth[month].forEach(exp => {
+            let tableHTML = '<table><thead><tr><th>Descripción</th><th>Monto</th><th>Persona</th><th>Tarjeta</th><th>Tipo</th><th>Acciones</th></tr></thead><tbody>';
+            if (filteredExpenses.length > 0) {
+                filteredExpenses.forEach(exp => {
                     const card = cards.find(c => c.id === exp.cardId);
                     let paymentInfo = exp.type === 'single' ? 'Único' : `Diferido (${exp.currentInstallment}/${exp.totalInstallments})`;
                     let amountDisplay = exp.amount;
@@ -557,38 +570,66 @@
                         <td>${exp.person}</td>
                         <td>${card ? card.name : 'N/A'}</td>
                         <td>${paymentInfo}</td>
-                        <td><button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button></td>
+                        <td>
+                            <button class="btn-action" onclick="editExpense(${exp.id})">Editar</button>
+                            <button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button>
+                        </td>
                     </tr>`;
                 });
-                tableHTML += '</tbody></table>';
-                content.innerHTML = tableHTML;
-                
-                tabsContainer.appendChild(tab);
-                contentContainer.appendChild(content);
-
-                if (index === 0) {
-                    tab.classList.add('active');
-                    content.classList.add('active');
-                }
-            });
+            } else {
+                tableHTML += '<tr><td colspan="6" style="text-align:center;">No hay movimientos registrados para este mes.</td></tr>';
+            }
+            tableHTML += '</tbody></table>';
+            contentContainer.innerHTML = tableHTML;
         }
         
         function renderTotalMonthlyPayment() {
-            const totalPayment = cards.reduce((total, card) => {
-                return total + calculateTotalDueForCard(card.id);
-            }, 0);
-            document.getElementById('total-monthly-payment').innerText = `$${totalPayment.toFixed(2)}`;
+            const breakdown = getPaymentBreakdownForDate(displayedDate);
+            const container = document.getElementById('total-monthly-payment');
+            container.innerHTML = '';
+
+            const total = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
+            const totalEl = document.createElement('p');
+            totalEl.className = 'payment-breakdown-total';
+            totalEl.innerHTML = `Total: <strong>$${total.toFixed(2)}</strong>`;
+            container.appendChild(totalEl);
+
+            const samuelTotal = breakdown['Samuel'] || 0;
+            const samuelEl = document.createElement('p');
+            samuelEl.className = 'payment-breakdown-samuel';
+            samuelEl.innerHTML = `Samuel: <strong>$${samuelTotal.toFixed(2)}</strong>`;
+            container.appendChild(samuelEl);
+
+            const otherPeople = Object.keys(breakdown).filter(p => p !== 'Samuel');
+            if (otherPeople.length > 0) {
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'other-payments-title';
+                titleEl.innerText = 'Otros Pagos';
+                container.appendChild(titleEl);
+
+                const othersContainer = document.createElement('div');
+                othersContainer.className = 'other-payments';
+                otherPeople.forEach(person => {
+                    const personEl = document.createElement('p');
+                    personEl.innerHTML = `${person}: <strong>$${breakdown[person].toFixed(2)}</strong>`;
+                    othersContainer.appendChild(personEl);
+                });
+                container.appendChild(othersContainer);
+            }
         }
 
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.month-content').forEach(c => c.classList.remove('active'));
-            
-            const activeTab = Array.from(document.querySelectorAll('.tab-button')).find(b => b.innerText.replace(/[^a-zA-Z0-9]/g, '') === tabId);
-            if(activeTab) activeTab.classList.add('active');
-            
-            const activeContent = document.getElementById(tabId);
-            if(activeContent) activeContent.classList.add('active');
+        // --- NAVIGATION & DISPLAY ---
+        function updateMonthDisplay() {
+            const header = document.getElementById('history-month-year');
+            header.innerText = displayedDate.toLocaleString('es-MX', { month: 'long', year: 'numeric' });
+        }
+        function showPreviousMonth() {
+            displayedDate.setMonth(displayedDate.getMonth() - 1);
+            renderAll();
+        }
+        function showNextMonth() {
+            displayedDate.setMonth(displayedDate.getMonth() + 1);
+            renderAll();
         }
 
         // --- CORE LOGIC & EVENT HANDLERS ---
@@ -653,6 +694,35 @@
                 alert("Primero debes agregar una tarjeta de crédito.");
                 return;
             }
+            document.getElementById('modal-title').innerText = 'Nuevo Gasto';
+            document.getElementById('modal-submit-button').innerText = 'Registrar Gasto';
+            document.getElementById('editing-expense-id').value = '';
+            document.getElementById('expense-description').value = '';
+            document.getElementById('expense-amount').value = '';
+            document.getElementById('payment-type').value = 'single';
+            toggleDeferredOptions();
+            document.getElementById('expense-form-overlay').classList.add('active');
+        }
+
+        function editExpense(expenseId) {
+            const expense = expenses.find(exp => exp.id === expenseId);
+            if (!expense) return;
+
+            document.getElementById('modal-title').innerText = 'Editar Gasto';
+            document.getElementById('modal-submit-button').innerText = 'Guardar Cambios';
+            document.getElementById('editing-expense-id').value = expense.id;
+            document.getElementById('expense-description').value = expense.description;
+            document.getElementById('expense-amount').value = expense.amount;
+            document.getElementById('expense-card').value = expense.cardId;
+            document.getElementById('expense-person').value = expense.person;
+            document.getElementById('payment-type').value = expense.type;
+            
+            toggleDeferredOptions();
+            if (expense.type === 'deferred') {
+                document.getElementById('total-installments').value = expense.totalInstallments;
+                document.getElementById('current-installment').value = expense.currentInstallment;
+            }
+
             document.getElementById('expense-form-overlay').classList.add('active');
         }
 
@@ -684,52 +754,56 @@
             }
         }
 
-        function addExpense() {
+        function processExpense() {
+            const editingId = parseInt(document.getElementById('editing-expense-id').value);
             const description = document.getElementById('expense-description').value;
             const amount = parseFloat(document.getElementById('expense-amount').value);
+            
             if (!description || isNaN(amount) || amount <= 0) {
                 alert("Por favor, completa la descripción y un monto válido.");
                 return;
             }
 
-            const newExpense = {
-                id: Date.now(),
+            const expenseData = {
                 description,
                 amount,
                 cardId: parseInt(document.getElementById('expense-card').value),
                 person: document.getElementById('expense-person').value,
                 type: document.getElementById('payment-type').value,
-                date: new Date().toISOString()
             };
 
-            if (newExpense.type === 'deferred') {
-                newExpense.totalInstallments = parseInt(document.getElementById('total-installments').value);
-                newExpense.currentInstallment = parseInt(document.getElementById('current-installment').value);
-                if (newExpense.currentInstallment >= newExpense.totalInstallments) {
-                    alert("El mes actual debe ser menor al total de meses.");
+            if (expenseData.type === 'deferred') {
+                expenseData.totalInstallments = parseInt(document.getElementById('total-installments').value);
+                expenseData.currentInstallment = parseInt(document.getElementById('current-installment').value);
+                if (expenseData.currentInstallment > expenseData.totalInstallments) {
+                    alert("El mes actual no puede ser mayor al total de meses.");
                     return;
                 }
             }
+
+            if (editingId) {
+                // Update existing expense
+                const index = expenses.findIndex(exp => exp.id === editingId);
+                if (index > -1) {
+                    expenses[index] = { ...expenses[index], ...expenseData };
+                }
+            } else {
+                // Add new expense
+                expenseData.id = Date.now();
+                expenseData.date = new Date().toISOString();
+                expenses.push(expenseData);
+            }
             
-            expenses.push(newExpense);
             saveData();
             renderAll();
             closeExpenseForm();
-            document.getElementById('expense-description').value = '';
-            document.getElementById('expense-amount').value = '';
-            document.getElementById('payment-type').value = 'single';
-            toggleDeferredOptions();
         }
 
-        // --- CALCULATION FUNCTIONS (CORRECTED LOGIC) ---
+        // --- CALCULATION FUNCTIONS ---
         function calculateTotalDebt(cardId) {
             return expenses.reduce((total, expense) => {
-                if (expense.cardId !== cardId) {
-                    return total;
-                }
-                if (expense.type === 'single') {
-                    return total + expense.amount;
-                }
+                if (expense.cardId !== cardId) return total;
+                if (expense.type === 'single') return total + expense.amount;
                 if (expense.type === 'deferred') {
                     const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
                     return total + (expense.amount * remainingInstallments);
@@ -738,11 +812,11 @@
             }, 0);
         }
 
-        function calculateTotalDueForCard(cardId) {
+        function calculateTotalDueForCard(cardId, referenceDate) {
             const card = cards.find(c => c.id === cardId);
             if (!card) return 0;
 
-            const today = new Date();
+            const today = referenceDate;
             const currentYear = today.getFullYear();
             const currentMonth = today.getMonth();
 
@@ -760,13 +834,14 @@
             expenses.forEach(expense => {
                 if (expense.cardId !== cardId) return;
 
-                const expenseDate = new Date(expense.date);
-
                 if (expense.type === 'single') {
+                    const expenseDate = new Date(expense.date);
                     if (expenseDate > lastCutOffDate && expenseDate <= cutOffDate) {
                         totalDue += expense.amount;
                     }
-                } else if (expense.type === 'deferred') {
+                }
+                
+                if (expense.type === 'deferred') {
                      const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
                      if (remainingInstallments > 0) {
                         totalDue += expense.amount;
@@ -776,69 +851,125 @@
             return totalDue;
         }
         
-        // --- PROJECTION FUNCTIONS (IMPROVED LOGIC) ---
-        function populateFutureMonths() {
-            const select = document.getElementById('future-month-select');
-            select.innerHTML = '<option value="">Selecciona un mes...</option>';
-            const now = new Date();
-            for (let i = 0; i < 24; i++) {
-                const futureDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
-                const month = futureDate.getMonth();
-                const year = futureDate.getFullYear();
-                const option = document.createElement('option');
-                option.value = `${month}-${year}`;
-                option.innerText = futureDate.toLocaleString('es-MX', { month: 'long', year: 'numeric' });
-                select.appendChild(option);
-            }
-        }
-
-        function showProjection() {
-            const select = document.getElementById('future-month-select');
-            const resultEl = document.getElementById('projection-result');
-            if (!select.value) {
-                resultEl.innerText = '';
-                return;
-            }
+        function getPaymentBreakdownForDate(referenceDate) {
+            const breakdown = {};
             
-            const [month, year] = select.value.split('-').map(Number);
-            const projectedTotal = calculateFutureProjection(month, year);
-            resultEl.innerText = `Pago Proyectado: $${projectedTotal.toFixed(2)}`;
+            cards.forEach(card => {
+                const today = referenceDate;
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth();
+
+                let cutOffDate;
+                if (today.getDate() > card.cutDay) {
+                    cutOffDate = new Date(currentYear, currentMonth, card.cutDay, 23, 59, 59);
+                } else {
+                    cutOffDate = new Date(currentYear, currentMonth - 1, card.cutDay, 23, 59, 59);
+                }
+
+                let lastCutOffDate = new Date(cutOffDate);
+                lastCutOffDate.setMonth(lastCutOffDate.getMonth() - 1);
+
+                expenses.forEach(expense => {
+                    if (expense.cardId !== card.id) return;
+
+                    let shouldAdd = false;
+                    let amountToAdd = expense.amount;
+
+                    if (expense.type === 'single') {
+                        const expenseDate = new Date(expense.date);
+                        if (expenseDate > lastCutOffDate && expenseDate <= cutOffDate) {
+                            shouldAdd = true;
+                        }
+                    } else if (expense.type === 'deferred') {
+                        const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
+                        if (remainingInstallments > 0) {
+                            shouldAdd = true;
+                        }
+                    }
+
+                    if (shouldAdd) {
+                        if (!breakdown[expense.person]) breakdown[expense.person] = 0;
+                        breakdown[expense.person] += amountToAdd;
+                    }
+                });
+            });
+            return breakdown;
         }
 
-        function calculateFutureProjection(targetMonth, targetYear) {
-            let projectedTotal = 0;
+
+        // --- PROJECTION FUNCTIONS ---
+        function renderNextMonthProjection() {
+            const now = displayedDate;
+            const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            const nextMonth = nextMonthDate.getMonth();
+            const nextYear = nextMonthDate.getFullYear();
+
+            const breakdown = calculateFutureProjectionByPerson(nextMonth, nextYear);
+            const container = document.getElementById('projection-result');
+            container.innerHTML = '';
+
+            const nextMonthName = nextMonthDate.toLocaleString('es-MX', { month: 'long' });
+            const titleEl = document.createElement('h2');
+            titleEl.innerHTML = `Proyección para <strong>${nextMonthName}</strong>`;
+            container.appendChild(titleEl);
+
+            const total = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
+            const totalEl = document.createElement('p');
+            totalEl.className = 'payment-breakdown-total';
+            totalEl.innerHTML = `Total: <strong>$${total.toFixed(2)}</strong>`;
+            container.appendChild(totalEl);
+            
+            const samuelTotal = breakdown['Samuel'] || 0;
+            const samuelEl = document.createElement('p');
+            samuelEl.className = 'payment-breakdown-samuel';
+            samuelEl.innerHTML = `Samuel: <strong>$${samuelTotal.toFixed(2)}</strong>`;
+            container.appendChild(samuelEl);
+
+            const otherPeople = Object.keys(breakdown).filter(p => p !== 'Samuel');
+            if (otherPeople.length > 0) {
+                const othersTitleEl = document.createElement('h3');
+                othersTitleEl.className = 'other-payments-title';
+                othersTitleEl.innerText = 'Otros Pagos Proyectados';
+                container.appendChild(othersTitleEl);
+
+                const othersContainer = document.createElement('div');
+                othersContainer.className = 'other-payments';
+                otherPeople.forEach(person => {
+                    const personEl = document.createElement('p');
+                    personEl.innerHTML = `${person}: <strong>$${breakdown[person].toFixed(2)}</strong>`;
+                    othersContainer.appendChild(personEl);
+                });
+                container.appendChild(othersContainer);
+            }
+        }
+
+        function calculateFutureProjectionByPerson(targetMonth, targetYear) {
+            const breakdown = {};
             const targetDate = new Date(targetYear, targetMonth, 1);
 
             expenses.forEach(exp => {
                 if (exp.type !== 'deferred') return;
 
-                // 1. Calculate the "real" start date of the payment plan.
                 const registrationDate = new Date(exp.date);
                 const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (exp.currentInstallment - 1), 1);
 
-                // 2. Check if the target date is even within the payment window.
-                if (targetDate < firstInstallmentDate) {
-                    return; // The projection is for a month before this payment even started.
-                }
+                if (targetDate < firstInstallmentDate) return;
 
-                // 3. Calculate how many months have passed between the first installment and the target date.
                 const monthsPassed = (targetDate.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (targetDate.getMonth() - firstInstallmentDate.getMonth());
-
-                // 4. The installment number for that future month is monthsPassed + 1.
                 const installmentNumberInFuture = monthsPassed + 1;
 
-                // 5. Check if this projected installment is valid (i.e., within the total number of installments).
                 if (installmentNumberInFuture > 0 && installmentNumberInFuture <= exp.totalInstallments) {
-                    projectedTotal += exp.amount;
+                    if (!breakdown[exp.person]) breakdown[exp.person] = 0;
+                    breakdown[exp.person] += exp.amount;
                 }
             });
-            return projectedTotal;
+            return breakdown;
         }
 
         // --- EXPORT FUNCTIONS ---
         function exportToCSV() {
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Mes,Descripcion,Monto,Persona,Tarjeta,Tipo de Pago,Mes Actual,Total Meses\r\n";
+            csvContent += "Mes de Registro,Descripcion,Monto,Persona,Tarjeta,Tipo de Pago,Mes Actual,Total Meses\r\n";
             expenses.forEach(exp => {
                 const card = cards.find(c => c.id === exp.cardId);
                 const monthYear = new Date(exp.date).toLocaleString('es-MX', { month: 'long', year: 'numeric' });
@@ -901,8 +1032,8 @@
             if (cards.length === 0) {
                  cards.push({ id: 1, name: 'Mi Tarjeta Azul', limit: 10000, cutDay: 15, payDay: 5, color: '#007bff' });
             }
+            displayCurrentDate();
             renderAll();
-            populateFutureMonths();
         });
     </script>
 </body>
