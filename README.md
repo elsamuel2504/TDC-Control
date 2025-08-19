@@ -811,49 +811,47 @@
         }
 
         function calculateTotalDueForCard(cardId, referenceDate) {
-            const breakdown = getPaymentBreakdownForDate(referenceDate);
-            let totalForCard = 0;
-            
-            // This is complex to break down by card AND person here. 
-            // A simpler way is to just calculate the total for the card directly.
             const card = cards.find(c => c.id === cardId);
             if (!card) return 0;
+            
+            const breakdown = getPaymentBreakdownForDate(referenceDate);
+            let totalForCard = 0;
 
-            const today = referenceDate;
-            const currentYear = today.getFullYear();
-            const currentMonth = today.getMonth();
-
-            let cutOffDate;
-            if (today.getDate() > card.cutDay) {
-                cutOffDate = new Date(currentYear, currentMonth, card.cutDay, 23, 59, 59);
-            } else {
-                cutOffDate = new Date(currentYear, currentMonth - 1, card.cutDay, 23, 59, 59);
-            }
-            let lastCutOffDate = new Date(cutOffDate);
-            lastCutOffDate.setMonth(lastCutOffDate.getMonth() - 1);
-
+            // Loop through all expenses to find which ones belong to this card and are due
             expenses.forEach(expense => {
                 if (expense.cardId !== cardId) return;
 
+                let isDue = false;
                 if (expense.type === 'single') {
+                    const today = referenceDate;
+                    const cutOffDate = new Date(today.getFullYear(), today.getMonth(), card.cutDay);
+                    if (today.getDate() <= card.cutDay) {
+                        cutOffDate.setMonth(cutOffDate.getMonth() - 1);
+                    }
+                    const lastCutOffDate = new Date(cutOffDate);
+                    lastCutOffDate.setMonth(lastCutOffDate.getMonth() - 1);
                     const expenseDate = new Date(expense.date);
                     if (expenseDate > lastCutOffDate && expenseDate <= cutOffDate) {
-                        totalForCard += expense.amount;
+                        isDue = true;
                     }
                 } else if (expense.type === 'deferred') {
                     const remaining = (expense.totalInstallments - expense.currentInstallment) + 1;
                     if (remaining > 0) {
-                        totalForCard += expense.amount;
+                        isDue = true;
                     }
                 }
+
+                if (isDue) {
+                    totalForCard += expense.amount;
+                }
             });
+
             return totalForCard;
         }
         
         function getPaymentBreakdownForDate(referenceDate) {
             const breakdown = {};
             
-            // Loop through each expense once to determine if it's due
             expenses.forEach(expense => {
                 const card = cards.find(c => c.id === expense.cardId);
                 if (!card) return;
