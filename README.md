@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -846,9 +845,9 @@
                 let isDue = false;
 
                 if (expense.type === 'single') {
-                    const today = referenceDate;
-                    const cutOffDate = new Date(today.getFullYear(), today.getMonth(), card.cutDay);
-                    if (today.getDate() <= card.cutDay) {
+                    const ref = referenceDate;
+                    const cutOffDate = new Date(ref.getFullYear(), ref.getMonth(), card.cutDay);
+                    if (ref.getDate() <= card.cutDay) {
                         cutOffDate.setMonth(cutOffDate.getMonth() - 1);
                     }
                     const lastCutOffDate = new Date(cutOffDate);
@@ -859,6 +858,7 @@
                         isDue = true;
                     }
                 } else if (expense.type === 'deferred') {
+                    // Deferred payments are due every month until they are finished.
                     const remaining = (expense.totalInstallments - expense.currentInstallment) + 1;
                     if (remaining > 0) {
                         isDue = true;
