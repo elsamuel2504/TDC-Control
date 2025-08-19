@@ -387,6 +387,25 @@
             background: #c0392b;
         }
 
+        /* Styles for person summary */
+        #person-summary-container details {
+            margin-bottom: 10px;
+        }
+        #person-summary-container summary {
+            font-size: 1.2em;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        #person-summary-container ul {
+            list-style-type: none;
+            padding-left: 20px;
+            border-left: 2px solid var(--accent-color);
+            margin-top: 10px;
+        }
+        #person-summary-container li {
+            padding: 5px 0;
+        }
+
     </style>
 </head>
 <body>
@@ -420,6 +439,11 @@
             <div id="people-list" style="margin-bottom:15px;"></div>
             <input type="text" id="new-person-name" placeholder="Agregar nuevo nombre" style="padding: 10px; border-radius: 5px; border: 1px solid #444; background: #333; color: var(--font-color); margin-right: 10px;">
             <button class="btn btn-primary" onclick="addPerson()">Agregar</button>
+        </div>
+
+        <div class="main-content-section">
+            <h2>Resumen por Persona (Historial Completo)</h2>
+            <div id="person-summary-container"></div>
         </div>
 
         <div class="main-content-section">
@@ -502,6 +526,7 @@
         function renderAll() {
             renderCards();
             renderPeople();
+            renderSummaryByPerson();
             renderExpensesForDisplayedMonth();
             renderTotalMonthlyPayment();
             renderNextMonthProjection();
@@ -553,6 +578,37 @@
             const select = document.getElementById('expense-person');
             list.innerHTML = people.map(p => `<span style="background:#333; padding: 5px 10px; border-radius: 15px; margin-right: 5px;">${p}</span>`).join('');
             select.innerHTML = people.map(p => `<option value="${p}">${p}</option>`).join('');
+        }
+
+        function renderSummaryByPerson() {
+            const container = document.getElementById('person-summary-container');
+            container.innerHTML = '';
+
+            people.forEach(person => {
+                const personExpenses = expenses.filter(exp => exp.person === person);
+                if (personExpenses.length === 0) return;
+
+                let totalSpent = 0;
+                personExpenses.forEach(exp => {
+                    if (exp.type === 'single') {
+                        totalSpent += exp.amount;
+                    } else if (exp.type === 'deferred') {
+                        totalSpent += exp.amount * exp.totalInstallments;
+                    }
+                });
+
+                const personDetails = document.createElement('details');
+                personDetails.innerHTML = `
+                    <summary>${person}: <strong>$${totalSpent.toFixed(2)}</strong> (Total Histórico)</summary>
+                    <ul>
+                        ${personExpenses.map(exp => {
+                            const card = cards.find(c => c.id === exp.cardId);
+                            return `<li>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)} en ${card ? card.name : ''}</li>`
+                        }).join('')}
+                    </ul>
+                `;
+                container.appendChild(personDetails);
+            });
         }
 
         function renderExpensesForDisplayedMonth() {
@@ -858,7 +914,6 @@
                         isDue = true;
                     }
                 } else if (expense.type === 'deferred') {
-                    // Deferred payments are due every month until they are finished.
                     const remaining = (expense.totalInstallments - expense.currentInstallment) + 1;
                     if (remaining > 0) {
                         isDue = true;
@@ -898,7 +953,9 @@
                 if (expense.type === 'single') return total + expense.amount;
                 if (expense.type === 'deferred') {
                     const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
-                    return total + (expense.amount * remainingInstallments);
+                    if (remainingInstallments > 0) {
+                        return total + (expense.amount * remainingInstallments);
+                    }
                 }
                 return total;
             }, 0);
