@@ -836,59 +836,9 @@
         }
 
         // --- CALCULATION FUNCTIONS (REVISED & CORRECTED) ---
-        function calculateTotalDebt(cardId) {
-            return expenses.reduce((total, expense) => {
-                if (expense.cardId !== cardId) return total;
-                if (expense.type === 'single') return total + expense.amount;
-                if (expense.type === 'deferred') {
-                    const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
-                    return total + (expense.amount * remainingInstallments);
-                }
-                return total;
-            }, 0);
-        }
+        function getDueExpensesForDate(referenceDate) {
+            const dueExpenses = [];
 
-        function calculateTotalDueForCard(cardId, referenceDate) {
-            const breakdown = getPaymentBreakdownForDate(referenceDate);
-            let totalForCard = 0;
-            
-            expenses.forEach(expense => {
-                if (expense.cardId !== cardId) return;
-
-                const card = cards.find(c => c.id === cardId);
-                if (!card) return;
-
-                let isDue = false;
-                if (expense.type === 'single') {
-                    const today = referenceDate;
-                    const cutOffDate = new Date(today.getFullYear(), today.getMonth(), card.cutDay);
-                    if (today.getDate() <= card.cutDay) {
-                        cutOffDate.setMonth(cutOffDate.getMonth() - 1);
-                    }
-                    const lastCutOffDate = new Date(cutOffDate);
-                    lastCutOffDate.setMonth(lastCutOffDate.getMonth() - 1);
-                    const expenseDate = new Date(expense.date);
-                    if (expenseDate > lastCutOffDate && expenseDate <= cutOffDate) {
-                        isDue = true;
-                    }
-                } else if (expense.type === 'deferred') {
-                    const remaining = (expense.totalInstallments - expense.currentInstallment) + 1;
-                    if (remaining > 0) {
-                        isDue = true;
-                    }
-                }
-
-                if (isDue) {
-                    totalForCard += expense.amount;
-                }
-            });
-
-            return totalForCard;
-        }
-        
-        function getPaymentBreakdownForDate(referenceDate) {
-            const breakdown = {};
-            
             expenses.forEach(expense => {
                 const card = cards.find(c => c.id === expense.cardId);
                 if (!card) return;
@@ -916,13 +866,43 @@
                 }
 
                 if (isDue) {
-                    if (!breakdown[expense.person]) breakdown[expense.person] = 0;
-                    breakdown[expense.person] += expense.amount;
+                    dueExpenses.push(expense);
                 }
+            });
+            return dueExpenses;
+        }
+
+        function getPaymentBreakdownForDate(referenceDate) {
+            const breakdown = {};
+            const dueExpenses = getDueExpensesForDate(referenceDate);
+            
+            dueExpenses.forEach(expense => {
+                if (!breakdown[expense.person]) {
+                    breakdown[expense.person] = 0;
+                }
+                breakdown[expense.person] += expense.amount;
             });
             return breakdown;
         }
 
+        function calculateTotalDueForCard(cardId, referenceDate) {
+            const dueExpenses = getDueExpensesForDate(referenceDate);
+            return dueExpenses
+                .filter(expense => expense.cardId === cardId)
+                .reduce((total, expense) => total + expense.amount, 0);
+        }
+
+        function calculateTotalDebt(cardId) {
+            return expenses.reduce((total, expense) => {
+                if (expense.cardId !== cardId) return total;
+                if (expense.type === 'single') return total + expense.amount;
+                if (expense.type === 'deferred') {
+                    const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
+                    return total + (expense.amount * remainingInstallments);
+                }
+                return total;
+            }, 0);
+        }
 
         // --- PROJECTION FUNCTIONS ---
         function renderNextMonthProjection() {
@@ -995,9 +975,7 @@
         
         function getProjectedDeferredExpensesForDate(targetDate) {
             const projectedExpenses = [];
-            const targetMonth = targetDate.getMonth();
-            const targetYear = targetDate.getFullYear();
-
+            
             expenses.forEach(exp => {
                 if (exp.type !== 'deferred') return;
                 
