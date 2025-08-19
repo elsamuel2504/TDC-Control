@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -369,6 +370,10 @@
             font-size: 0.9em;
             margin-right: 5px;
         }
+        .btn-action:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
 
         .btn-delete-expense {
             background: var(--danger-color);
@@ -443,6 +448,10 @@
             <div class="form-group">
                 <label for="expense-description">Descripción</label>
                 <input type="text" id="expense-description" required>
+            </div>
+             <div class="form-group">
+                <label for="expense-date">Mes de Registro</label>
+                <select id="expense-date"></select>
             </div>
             <div class="form-group">
                 <label for="expense-amount" id="amount-label">Monto Total</label>
@@ -549,35 +558,41 @@
 
         function renderExpensesForDisplayedMonth() {
             const contentContainer = document.getElementById('expenses-table-container');
-            
-            const monthStart = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
-            const monthEnd = new Date(displayedDate.getFullYear(), displayedDate.getMonth() + 1, 0);
+            const now = new Date();
+            const isFutureMonth = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1) > new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const filteredExpenses = expenses.filter(exp => {
-                const expDate = new Date(exp.date);
-                return expDate >= monthStart && expDate <= monthEnd;
-            });
+            let expensesToShow = [];
+            if (isFutureMonth) {
+                expensesToShow = getProjectedDeferredExpensesForDate(displayedDate);
+            } else {
+                const monthStart = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
+                const monthEnd = new Date(displayedDate.getFullYear(), displayedDate.getMonth() + 1, 0);
+                expensesToShow = expenses.filter(exp => {
+                    const expDate = new Date(exp.date);
+                    return expDate >= monthStart && expDate <= monthEnd;
+                });
+            }
 
             let tableHTML = '<table><thead><tr><th>Descripción</th><th>Monto</th><th>Persona</th><th>Tarjeta</th><th>Tipo</th><th>Acciones</th></tr></thead><tbody>';
-            if (filteredExpenses.length > 0) {
-                filteredExpenses.forEach(exp => {
+            if (expensesToShow.length > 0) {
+                expensesToShow.forEach(exp => {
                     const card = cards.find(c => c.id === exp.cardId);
                     let paymentInfo = exp.type === 'single' ? 'Único' : `Diferido (${exp.currentInstallment}/${exp.totalInstallments})`;
                     let amountDisplay = exp.amount;
                     tableHTML += `<tr>
-                        <td>${exp.description}</td>
+                        <td>${exp.description} ${exp.isProjection ? '(Proyectado)' : ''}</td>
                         <td>$${amountDisplay.toFixed(2)}</td>
                         <td>${exp.person}</td>
                         <td>${card ? card.name : 'N/A'}</td>
                         <td>${paymentInfo}</td>
                         <td>
-                            <button class="btn-action" onclick="editExpense(${exp.id})">Editar</button>
+                            <button class="btn-action" onclick="editExpense(${exp.id})" ${exp.isProjection ? 'disabled' : ''}>Editar</button>
                             <button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button>
                         </td>
                     </tr>`;
                 });
             } else {
-                tableHTML += '<tr><td colspan="6" style="text-align:center;">No hay movimientos registrados para este mes.</td></tr>';
+                tableHTML += `<tr><td colspan="6" style="text-align:center;">No hay movimientos ${isFutureMonth ? 'proyectados' : 'registrados'} para este mes.</td></tr>`;
             }
             tableHTML += '</tbody></table>';
             contentContainer.innerHTML = tableHTML;
@@ -689,6 +704,24 @@
             }
         }
 
+        function populateRegistrationMonthSelect(selectElId, selectedDate = new Date()) {
+            const select = document.getElementById(selectElId);
+            select.innerHTML = '';
+            const now = new Date();
+            for (let i = -6; i <= 12; i++) {
+                const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                const month = date.getMonth();
+                const year = date.getFullYear();
+                const option = document.createElement('option');
+                option.value = `${month}-${year}`;
+                option.innerText = date.toLocaleString('es-MX', { month: 'long', year: 'numeric' });
+                if (date.getMonth() === selectedDate.getMonth() && date.getFullYear() === selectedDate.getFullYear()) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        }
+
         function openExpenseForm() {
             if (cards.length === 0) {
                 alert("Primero debes agregar una tarjeta de crédito.");
@@ -700,6 +733,7 @@
             document.getElementById('expense-description').value = '';
             document.getElementById('expense-amount').value = '';
             document.getElementById('payment-type').value = 'single';
+            populateRegistrationMonthSelect('expense-date', new Date());
             toggleDeferredOptions();
             document.getElementById('expense-form-overlay').classList.add('active');
         }
@@ -716,6 +750,7 @@
             document.getElementById('expense-card').value = expense.cardId;
             document.getElementById('expense-person').value = expense.person;
             document.getElementById('payment-type').value = expense.type;
+            populateRegistrationMonthSelect('expense-date', new Date(expense.date));
             
             toggleDeferredOptions();
             if (expense.type === 'deferred') {
@@ -763,6 +798,9 @@
                 alert("Por favor, completa la descripción y un monto válido.");
                 return;
             }
+            
+            const [month, year] = document.getElementById('expense-date').value.split('-').map(Number);
+            const registrationDate = new Date(year, month, 15); // Use 15th to avoid timezone issues
 
             const expenseData = {
                 description,
@@ -770,6 +808,7 @@
                 cardId: parseInt(document.getElementById('expense-card').value),
                 person: document.getElementById('expense-person').value,
                 type: document.getElementById('payment-type').value,
+                date: registrationDate.toISOString()
             };
 
             if (expenseData.type === 'deferred') {
@@ -788,7 +827,6 @@
                 }
             } else {
                 expenseData.id = Date.now();
-                expenseData.date = new Date().toISOString();
                 expenses.push(expenseData);
             }
             
@@ -811,15 +849,14 @@
         }
 
         function calculateTotalDueForCard(cardId, referenceDate) {
-            const card = cards.find(c => c.id === cardId);
-            if (!card) return 0;
-            
             const breakdown = getPaymentBreakdownForDate(referenceDate);
             let totalForCard = 0;
-
-            // Loop through all expenses to find which ones belong to this card and are due
+            
             expenses.forEach(expense => {
                 if (expense.cardId !== cardId) return;
+
+                const card = cards.find(c => c.id === cardId);
+                if (!card) return;
 
                 let isDue = false;
                 if (expense.type === 'single') {
@@ -954,6 +991,32 @@
                 }
             });
             return breakdown;
+        }
+        
+        function getProjectedDeferredExpensesForDate(targetDate) {
+            const projectedExpenses = [];
+            const targetMonth = targetDate.getMonth();
+            const targetYear = targetDate.getFullYear();
+
+            expenses.forEach(exp => {
+                if (exp.type !== 'deferred') return;
+                
+                const registrationDate = new Date(exp.date);
+                const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (exp.currentInstallment - 1), 1);
+                if (targetDate < firstInstallmentDate) return;
+
+                const monthsPassed = (targetDate.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (targetDate.getMonth() - firstInstallmentDate.getMonth());
+                const installmentNumberInFuture = monthsPassed + 1;
+
+                if (installmentNumberInFuture > 0 && installmentNumberInFuture <= exp.totalInstallments) {
+                    projectedExpenses.push({
+                        ...exp,
+                        isProjection: true,
+                        currentInstallment: installmentNumberInFuture,
+                    });
+                }
+            });
+            return projectedExpenses;
         }
 
         // --- EXPORT FUNCTIONS ---
