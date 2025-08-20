@@ -403,7 +403,10 @@
             margin-top: 10px;
         }
         #person-summary-container li {
-            padding: 5px 0;
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
     </style>
@@ -603,7 +606,13 @@
                     <ul>
                         ${personExpenses.map(exp => {
                             const card = cards.find(c => c.id === exp.cardId);
-                            return `<li>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)} en ${card ? card.name : ''}</li>`
+                            return `<li>
+                                <span>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)} en ${card ? card.name : ''}</span>
+                                <div>
+                                    <button class="btn-action" onclick="editExpense(${exp.id})">Editar</button>
+                                    <button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button>
+                                </div>
+                            </li>`
                         }).join('')}
                     </ul>
                 `;
@@ -901,21 +910,17 @@
                 let isDue = false;
 
                 if (expense.type === 'single') {
-                    const ref = referenceDate;
-                    const cutOffDate = new Date(ref.getFullYear(), ref.getMonth(), card.cutDay);
-                    if (ref.getDate() <= card.cutDay) {
-                        cutOffDate.setMonth(cutOffDate.getMonth() - 1);
-                    }
-                    const lastCutOffDate = new Date(cutOffDate);
-                    lastCutOffDate.setMonth(lastCutOffDate.getMonth() - 1);
-                    
                     const expenseDate = new Date(expense.date);
-                    if (expenseDate > lastCutOffDate && expenseDate <= cutOffDate) {
+                    if (expenseDate.getMonth() === referenceDate.getMonth() && expenseDate.getFullYear() === referenceDate.getFullYear()) {
                         isDue = true;
                     }
                 } else if (expense.type === 'deferred') {
-                    const remaining = (expense.totalInstallments - expense.currentInstallment) + 1;
-                    if (remaining > 0) {
+                    const registrationDate = new Date(expense.date);
+                    const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (expense.currentInstallment - 1), 1);
+                    const monthsPassed = (referenceDate.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (referenceDate.getMonth() - firstInstallmentDate.getMonth());
+                    const installmentNumberForRefDate = monthsPassed + 1;
+
+                    if (installmentNumberForRefDate > 0 && installmentNumberForRefDate <= expense.totalInstallments) {
                         isDue = true;
                     }
                 }
@@ -948,17 +953,29 @@
         }
 
         function calculateTotalDebt(cardId) {
-            return expenses.reduce((total, expense) => {
-                if (expense.cardId !== cardId) return total;
-                if (expense.type === 'single') return total + expense.amount;
-                if (expense.type === 'deferred') {
-                    const remainingInstallments = (expense.totalInstallments - expense.currentInstallment) + 1;
-                    if (remainingInstallments > 0) {
-                        return total + (expense.amount * remainingInstallments);
+            let totalDebt = 0;
+            expenses.forEach(expense => {
+                if (expense.cardId !== cardId) return;
+
+                if (expense.type === 'single') {
+                    // This assumes single payments are "unpaid" until deleted.
+                    // A more complex app might have a "paid" flag.
+                    totalDebt += expense.amount;
+                } else if (expense.type === 'deferred') {
+                    const registrationDate = new Date(expense.date);
+                    const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (expense.currentInstallment - 1), 1);
+                    const now = new Date();
+                    
+                    const monthsPassed = (now.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (now.getMonth() - firstInstallmentDate.getMonth());
+                    const currentInstallmentNumber = monthsPassed + 1;
+
+                    if (currentInstallmentNumber > 0 && currentInstallmentNumber <= expense.totalInstallments) {
+                        const remainingInstallments = expense.totalInstallments - currentInstallmentNumber + 1;
+                        totalDebt += expense.amount * remainingInstallments;
                     }
                 }
-                return total;
-            }, 0);
+            });
+            return totalDebt;
         }
 
         // --- PROJECTION FUNCTIONS ---
