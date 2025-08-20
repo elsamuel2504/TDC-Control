@@ -12,6 +12,7 @@
             --secondary-accent-color: #f5a623;
             --card-shadow: rgba(0, 0, 0, 0.4);
             --danger-color: #e74c3c;
+            --success-color: #28a745;
         }
 
         body {
@@ -388,25 +389,52 @@
         }
 
         /* Styles for person summary */
-        #person-summary-container details {
+        .summary-details {
             margin-bottom: 10px;
         }
-        #person-summary-container summary {
+        .summary-details summary {
             font-size: 1.2em;
             font-weight: 500;
             cursor: pointer;
         }
-        #person-summary-container ul {
+        .summary-details ul {
             list-style-type: none;
             padding-left: 20px;
             border-left: 2px solid var(--accent-color);
             margin-top: 10px;
         }
-        #person-summary-container li {
+        .summary-details li {
             padding: 8px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        #deferred-debt-container p {
+            font-size: 1.2em;
+            margin: 8px 0;
+        }
+        
+        /* Styles for payment tracking */
+        .payment-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .payment-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #333;
+        }
+        .payment-list li.paid {
+            text-decoration: line-through;
+            color: #888;
+        }
+        .payment-summary {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+            font-size: 1.2em;
         }
 
     </style>
@@ -447,6 +475,16 @@
         <div class="main-content-section">
             <h2>Resumen por Persona (Historial Completo)</h2>
             <div id="person-summary-container"></div>
+        </div>
+
+        <div class="main-content-section">
+            <h2>Deuda Total en Pagos Diferidos</h2>
+            <div id="deferred-debt-container"></div>
+        </div>
+
+        <div class="main-content-section">
+            <h2>Pagos del Mes</h2>
+            <div id="payment-tracker-container"></div>
         </div>
 
         <div class="main-content-section">
@@ -530,6 +568,8 @@
             renderCards();
             renderPeople();
             renderSummaryByPerson();
+            renderDeferredDebtByPerson();
+            renderPaymentTracker();
             renderExpensesForDisplayedMonth();
             renderTotalMonthlyPayment();
             renderNextMonthProjection();
@@ -591,6 +631,14 @@
                 const personExpenses = expenses.filter(exp => exp.person === person);
                 if (personExpenses.length === 0) return;
 
+                const expensesByCard = personExpenses.reduce((acc, exp) => {
+                    const card = cards.find(c => c.id === exp.cardId);
+                    const cardName = card ? card.name : 'Sin Tarjeta';
+                    if (!acc[cardName]) acc[cardName] = [];
+                    acc[cardName].push(exp);
+                    return acc;
+                }, {});
+
                 let totalSpent = 0;
                 personExpenses.forEach(exp => {
                     if (exp.type === 'single') {
@@ -601,23 +649,108 @@
                 });
 
                 const personDetails = document.createElement('details');
-                personDetails.innerHTML = `
-                    <summary>${person}: <strong>$${totalSpent.toFixed(2)}</strong> (Total Histórico)</summary>
-                    <ul>
-                        ${personExpenses.map(exp => {
-                            const card = cards.find(c => c.id === exp.cardId);
-                            return `<li>
-                                <span>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)} en ${card ? card.name : ''}</span>
+                personDetails.className = 'summary-details';
+                personDetails.innerHTML = `<summary>${person}: <strong>$${totalSpent.toFixed(2)}</strong> (Total Histórico)</summary>`;
+                
+                Object.keys(expensesByCard).forEach(cardName => {
+                    const cardDetails = document.createElement('details');
+                    cardDetails.style.paddingLeft = '20px';
+                    cardDetails.innerHTML = `<summary>${cardName}</summary>
+                        <ul>
+                            ${expensesByCard[cardName].map(exp => `<li>
+                                <span>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)}</span>
                                 <div>
                                     <button class="btn-action" onclick="editExpense(${exp.id})">Editar</button>
                                     <button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button>
                                 </div>
-                            </li>`
-                        }).join('')}
-                    </ul>
-                `;
+                            </li>`).join('')}
+                        </ul>
+                    `;
+                    personDetails.appendChild(cardDetails);
+                });
                 container.appendChild(personDetails);
             });
+        }
+
+        function renderDeferredDebtByPerson() {
+            const container = document.getElementById('deferred-debt-container');
+            container.innerHTML = '';
+            const debtByPerson = {};
+
+            expenses.forEach(exp => {
+                if (exp.type === 'deferred') {
+                    const registrationDate = new Date(exp.date);
+                    const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (exp.currentInstallment - 1), 1);
+                    const now = new Date();
+                    
+                    if (now >= firstInstallmentDate) {
+                        const monthsPassed = (now.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (now.getMonth() - firstInstallmentDate.getMonth());
+                        const currentInstallmentNumber = monthsPassed + 1;
+
+                        if (currentInstallmentNumber > 0 && currentInstallmentNumber <= exp.totalInstallments) {
+                            const remainingInstallments = exp.totalInstallments - currentInstallmentNumber + 1;
+                            const remainingDebt = exp.amount * remainingInstallments;
+
+                            if (!debtByPerson[exp.person]) debtByPerson[exp.person] = 0;
+                            debtByPerson[exp.person] += remainingDebt;
+                        }
+                    }
+                }
+            });
+
+            if (Object.keys(debtByPerson).length > 0) {
+                Object.keys(debtByPerson).forEach(person => {
+                    const personEl = document.createElement('p');
+                    personEl.innerHTML = `${person}: <strong>$${debtByPerson[person].toFixed(2)}</strong>`;
+                    container.appendChild(personEl);
+                });
+            } else {
+                container.innerHTML = '<p>No hay deudas por pagos diferidos activos.</p>';
+            }
+        }
+
+        function renderPaymentTracker() {
+            const container = document.getElementById('payment-tracker-container');
+            const dueExpenses = getDueExpensesForDate(displayedDate);
+            container.innerHTML = '';
+
+            if (dueExpenses.length === 0) {
+                container.innerHTML = '<p>No hay pagos para este mes.</p>';
+                return;
+            }
+
+            const list = document.createElement('ul');
+            list.className = 'payment-list';
+            let totalPaid = 0;
+            let totalDue = 0;
+
+            dueExpenses.forEach(exp => {
+                const li = document.createElement('li');
+                if (exp.paid) {
+                    li.className = 'paid';
+                    totalPaid += exp.amount;
+                }
+                totalDue += exp.amount;
+                
+                li.innerHTML = `
+                    <div>
+                        <input type="checkbox" id="pay-${exp.id}" onchange="togglePaymentStatus(${exp.id})" ${exp.paid ? 'checked' : ''}>
+                        <label for="pay-${exp.id}">${exp.description} (${exp.person})</label>
+                    </div>
+                    <span>$${exp.amount.toFixed(2)}</span>
+                `;
+                list.appendChild(li);
+            });
+            container.appendChild(list);
+
+            const summary = document.createElement('div');
+            summary.className = 'payment-summary';
+            summary.innerHTML = `
+                <p>Total del Mes: <strong>$${totalDue.toFixed(2)}</strong></p>
+                <p style="color: var(--success-color);">Pagado: <strong>$${totalPaid.toFixed(2)}</strong></p>
+                <p style="color: var(--danger-color);">Restante: <strong>$${(totalDue - totalPaid).toFixed(2)}</strong></p>
+            `;
+            container.appendChild(summary);
         }
 
         function renderExpensesForDisplayedMonth() {
@@ -663,14 +796,14 @@
         }
         
         function renderTotalMonthlyPayment() {
-            const breakdown = getPaymentBreakdownForDate(displayedDate);
+            const breakdown = getPaymentBreakdownForDate(displayedDate, true); // Get only unpaid
             const container = document.getElementById('total-monthly-payment');
             container.innerHTML = '';
 
             const total = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
             const totalEl = document.createElement('p');
             totalEl.className = 'payment-breakdown-total';
-            totalEl.innerHTML = `Total: <strong>$${total.toFixed(2)}</strong>`;
+            totalEl.innerHTML = `Total Restante: <strong>$${total.toFixed(2)}</strong>`;
             container.appendChild(totalEl);
 
             const samuelTotal = breakdown['Samuel'] || 0;
@@ -864,7 +997,7 @@
             }
             
             const [month, year] = document.getElementById('expense-date').value.split('-').map(Number);
-            const registrationDate = new Date(year, month, 15); // Use 15th to avoid timezone issues
+            const registrationDate = new Date(year, month, 15);
 
             const expenseData = {
                 description,
@@ -872,7 +1005,8 @@
                 cardId: parseInt(document.getElementById('expense-card').value),
                 person: document.getElementById('expense-person').value,
                 type: document.getElementById('payment-type').value,
-                date: registrationDate.toISOString()
+                date: registrationDate.toISOString(),
+                paid: false // Always reset to unpaid on edit/add
             };
 
             if (expenseData.type === 'deferred') {
@@ -899,14 +1033,20 @@
             closeExpenseForm();
         }
 
+        function togglePaymentStatus(expenseId) {
+            const expense = expenses.find(exp => exp.id === expenseId);
+            if (expense) {
+                expense.paid = !expense.paid;
+                saveData();
+                renderAll();
+            }
+        }
+
         // --- CALCULATION FUNCTIONS (REVISED & CORRECTED) ---
-        function getDueExpensesForDate(referenceDate) {
-            const dueExpenses = [];
+        function getDueExpensesForDate(referenceDate, onlyUnpaid = false) {
+            let dueExpenses = [];
 
             expenses.forEach(expense => {
-                const card = cards.find(c => c.id === expense.cardId);
-                if (!card) return;
-
                 let isDue = false;
 
                 if (expense.type === 'single') {
@@ -929,12 +1069,16 @@
                     dueExpenses.push(expense);
                 }
             });
+
+            if (onlyUnpaid) {
+                return dueExpenses.filter(exp => !exp.paid);
+            }
             return dueExpenses;
         }
 
-        function getPaymentBreakdownForDate(referenceDate) {
+        function getPaymentBreakdownForDate(referenceDate, onlyUnpaid = false) {
             const breakdown = {};
-            const dueExpenses = getDueExpensesForDate(referenceDate);
+            const dueExpenses = getDueExpensesForDate(referenceDate, onlyUnpaid);
             
             dueExpenses.forEach(expense => {
                 if (!breakdown[expense.person]) {
@@ -946,7 +1090,7 @@
         }
 
         function calculateTotalDueForCard(cardId, referenceDate) {
-            const dueExpenses = getDueExpensesForDate(referenceDate);
+            const dueExpenses = getDueExpensesForDate(referenceDate, true); // Only unpaid
             return dueExpenses
                 .filter(expense => expense.cardId === cardId)
                 .reduce((total, expense) => total + expense.amount, 0);
@@ -957,21 +1101,21 @@
             expenses.forEach(expense => {
                 if (expense.cardId !== cardId) return;
 
-                if (expense.type === 'single') {
-                    // This assumes single payments are "unpaid" until deleted.
-                    // A more complex app might have a "paid" flag.
+                if (expense.type === 'single' && !expense.paid) {
                     totalDebt += expense.amount;
                 } else if (expense.type === 'deferred') {
                     const registrationDate = new Date(expense.date);
                     const firstInstallmentDate = new Date(registrationDate.getFullYear(), registrationDate.getMonth() - (expense.currentInstallment - 1), 1);
                     const now = new Date();
                     
-                    const monthsPassed = (now.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (now.getMonth() - firstInstallmentDate.getMonth());
-                    const currentInstallmentNumber = monthsPassed + 1;
+                    if (now >= firstInstallmentDate) {
+                        const monthsPassed = (now.getFullYear() - firstInstallmentDate.getFullYear()) * 12 + (now.getMonth() - firstInstallmentDate.getMonth());
+                        const currentInstallmentNumber = monthsPassed + 1;
 
-                    if (currentInstallmentNumber > 0 && currentInstallmentNumber <= expense.totalInstallments) {
-                        const remainingInstallments = expense.totalInstallments - currentInstallmentNumber + 1;
-                        totalDebt += expense.amount * remainingInstallments;
+                        if (currentInstallmentNumber > 0 && currentInstallmentNumber <= expense.totalInstallments) {
+                            const remainingInstallments = expense.totalInstallments - currentInstallmentNumber + 1;
+                            totalDebt += expense.amount * remainingInstallments;
+                        }
                     }
                 }
             });
@@ -1074,7 +1218,7 @@
         // --- EXPORT FUNCTIONS ---
         function exportToCSV() {
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Mes de Registro,Descripcion,Monto,Persona,Tarjeta,Tipo de Pago,Mes Actual,Total Meses\r\n";
+            csvContent += "Mes de Registro,Descripcion,Monto,Persona,Tarjeta,Tipo de Pago,Mes Actual,Total Meses,Pagado\r\n";
             expenses.forEach(exp => {
                 const card = cards.find(c => c.id === exp.cardId);
                 const monthYear = new Date(exp.date).toLocaleString('es-MX', { month: 'long', year: 'numeric' });
@@ -1086,7 +1230,8 @@
                     card ? `"${card.name}"` : "N/A",
                     exp.type,
                     exp.currentInstallment || 'N/A',
-                    exp.totalInstallments || 'N/A'
+                    exp.totalInstallments || 'N/A',
+                    exp.paid ? 'Si' : 'No'
                 ].join(",");
                 csvContent += row + "\r\n";
             });
