@@ -587,7 +587,7 @@
             const container = document.getElementById('cards-container');
             container.innerHTML = '';
             cards.forEach(card => {
-                const totalDebt = calculateTotalDebt(card.id);
+                const totalDebt = calculateTotalDebt(card.id, displayedDate);
                 const remainingBalance = card.limit - totalDebt;
                 const paymentDue = calculateTotalDueForCard(card.id, displayedDate);
                 const cardEl = document.createElement('div');
@@ -629,15 +629,10 @@
             title.innerHTML = `Resumen por Persona (${displayedDate.toLocaleString('es-MX', { month: 'long', year: 'numeric' })})`;
             container.innerHTML = '';
 
-            people.forEach(person => {
-                const monthStart = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
-                const monthEnd = new Date(displayedDate.getFullYear(), displayedDate.getMonth() + 1, 0);
-                
-                const personExpensesThisMonth = expenses.filter(exp => {
-                    const expDate = new Date(exp.date);
-                    return exp.person === person && expDate >= monthStart && expDate <= monthEnd;
-                });
+            const dueExpensesThisMonth = getDueExpensesForDate(displayedDate);
 
+            people.forEach(person => {
+                const personExpensesThisMonth = dueExpensesThisMonth.filter(exp => exp.person === person);
                 if (personExpensesThisMonth.length === 0) return;
 
                 const expensesByCard = personExpensesThisMonth.reduce((acc, exp) => {
@@ -652,7 +647,7 @@
 
                 const personDetails = document.createElement('details');
                 personDetails.className = 'summary-details';
-                personDetails.innerHTML = `<summary>${person}: <strong>$${totalSpentThisMonth.toFixed(2)}</strong> (Gastos del mes)</summary>`;
+                personDetails.innerHTML = `<summary>${person}: <strong>$${totalSpentThisMonth.toFixed(2)}</strong> (Pagos del mes)</summary>`;
                 
                 Object.keys(expensesByCard).forEach(cardName => {
                     const cardDetails = document.createElement('details');
@@ -660,7 +655,7 @@
                     cardDetails.innerHTML = `<summary>${cardName}</summary>
                         <ul>
                             ${expensesByCard[cardName].map(exp => `<li>
-                                <span>${new Date(exp.date).toLocaleDateString('es-MX')}: ${exp.description} - $${exp.amount.toFixed(2)}</span>
+                                <span>${exp.description} - $${exp.amount.toFixed(2)}</span>
                                 <div>
                                     <button class="btn-action" onclick="editExpense(${exp.id})">Editar</button>
                                     <button class="btn-delete-expense" onclick="deleteExpense(${exp.id})">Eliminar</button>
