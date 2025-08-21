@@ -448,7 +448,7 @@
         </div>
 
         <div class="main-summary-section">
-            <h2>Total a Pagar este Mes</h2>
+            <h2 id="summary-title">Total a Pagar este Mes</h2>
             <div id="total-monthly-payment"></div>
         </div>
 
@@ -473,7 +473,7 @@
         </div>
 
         <div class="main-content-section">
-            <h2>Resumen por Persona (Historial Completo)</h2>
+            <h2 id="person-summary-title">Resumen por Persona</h2>
             <div id="person-summary-container"></div>
         </div>
 
@@ -625,13 +625,22 @@
 
         function renderSummaryByPerson() {
             const container = document.getElementById('person-summary-container');
+            const title = document.getElementById('person-summary-title');
+            title.innerHTML = `Resumen por Persona (${displayedDate.toLocaleString('es-MX', { month: 'long', year: 'numeric' })})`;
             container.innerHTML = '';
 
             people.forEach(person => {
-                const personExpenses = expenses.filter(exp => exp.person === person);
-                if (personExpenses.length === 0) return;
+                const monthStart = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
+                const monthEnd = new Date(displayedDate.getFullYear(), displayedDate.getMonth() + 1, 0);
+                
+                const personExpensesThisMonth = expenses.filter(exp => {
+                    const expDate = new Date(exp.date);
+                    return exp.person === person && expDate >= monthStart && expDate <= monthEnd;
+                });
 
-                const expensesByCard = personExpenses.reduce((acc, exp) => {
+                if (personExpensesThisMonth.length === 0) return;
+
+                const expensesByCard = personExpensesThisMonth.reduce((acc, exp) => {
                     const card = cards.find(c => c.id === exp.cardId);
                     const cardName = card ? card.name : 'Sin Tarjeta';
                     if (!acc[cardName]) acc[cardName] = [];
@@ -639,18 +648,11 @@
                     return acc;
                 }, {});
 
-                let totalSpent = 0;
-                personExpenses.forEach(exp => {
-                    if (exp.type === 'single') {
-                        totalSpent += exp.amount;
-                    } else if (exp.type === 'deferred') {
-                        totalSpent += exp.amount * exp.totalInstallments;
-                    }
-                });
+                const totalSpentThisMonth = personExpensesThisMonth.reduce((total, exp) => total + exp.amount, 0);
 
                 const personDetails = document.createElement('details');
                 personDetails.className = 'summary-details';
-                personDetails.innerHTML = `<summary>${person}: <strong>$${totalSpent.toFixed(2)}</strong> (Total Histórico)</summary>`;
+                personDetails.innerHTML = `<summary>${person}: <strong>$${totalSpentThisMonth.toFixed(2)}</strong> (Gastos del mes)</summary>`;
                 
                 Object.keys(expensesByCard).forEach(cardName => {
                     const cardDetails = document.createElement('details');
@@ -796,6 +798,8 @@
         }
         
         function renderTotalMonthlyPayment() {
+            const title = document.getElementById('summary-title');
+            title.innerText = `Total a Pagar en ${displayedDate.toLocaleString('es-MX', { month: 'long' })}`;
             const breakdown = getPaymentBreakdownForDate(displayedDate, true); // Get only unpaid
             const container = document.getElementById('total-monthly-payment');
             container.innerHTML = '';
